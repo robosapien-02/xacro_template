@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+  <!-- Standard Material Definitions -->
   <material name="white"><color rgba="1.0 1.0 1.0 1.0"/></material>
   <material name="black"><color rgba="0.0 0.0 0.0 1.0"/></material>
   <material name="gray"><color rgba="0.5 0.5 0.5 1.0"/></material>
@@ -18,6 +19,137 @@
   <material name="silver"><color rgba="0.75 0.75 0.75 1.0"/></material>
   <material name="gold"><color rgba="1.0 0.84 0.0 1.0"/></material>
 
+  <!-- Inertia Calculation Macros -->
+  <xacro:macro name="inertial_sphere" params="mass radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}" />
+      <inertia ixx="${(2/5) * mass * (radius*radius)}" ixy="0.0" ixz="0.0"
+              iyy="${(2/5) * mass * (radius*radius)}" iyz="0.0"
+              izz="${(2/5) * mass * (radius*radius)}" />
+    </inertial>
+  </xacro:macro>  
+
+  <xacro:macro name="inertial_box" params="mass x y z *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}" />
+      <inertia ixx="${(1/12) * mass * (y*y+z*z)}" ixy="0.0" ixz="0.0"
+              iyy="${(1/12) * mass * (x*x+z*z)}" iyz="0.0"
+              izz="${(1/12) * mass * (x*x+y*y)}" />
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="inertial_cylinder" params="mass length radius *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}" />
+      <inertia ixx="${(1/12) * mass * (3*radius*radius + length*length)}" ixy="0.0" ixz="0.0"
+              iyy="${(1/12) * mass * (3*radius*radius + length*length)}" iyz="0.0"
+              izz="${(1/2) * mass * (radius*radius)}" />
+    </inertial>
+  </xacro:macro>
+
+  <!-- Smart Link Macro: Auto Inertia or Manual -->
+  <xacro:macro name="link_template" params="
+    link_name
+    mass
+    shape
+    size1
+    size2 := '0'
+    size3 := '0'
+    inertial_origin_xyz := '0 0 0'
+    inertial_origin_rpy := '0 0 0'
+    visual_geometry_type := ''
+    visual_geometry_size := ''
+    visual_geometry_mesh_filename := ''
+    visual_geometry_mesh_scale := '1 1 1'
+    visual_origin_xyz := '0 0 0'
+    visual_origin_rpy := '0 0 0'
+    visual_material := 'gray'
+    collision_geometry_type := ''
+    collision_geometry_size := ''
+    collision_geometry_mesh_filename := ''
+    collision_geometry_mesh_scale := '1 1 1'
+    collision_origin_xyz := '0 0 0'
+    collision_origin_rpy := '0 0 0'
+    # Manual inertia override (optional)
+    auto_inertia := 'true'
+    inertia_ixx := '1.0'
+    inertia_ixy := '0.0'
+    inertia_ixz := '0.0'
+    inertia_iyy := '1.0'
+    inertia_iyz := '0.0'
+    inertia_izz := '1.0'
+  ">
+    <link name="${link_name}">
+      <!-- Visual element -->
+      <visual>
+        <origin xyz="${visual_origin_xyz}" rpy="${visual_origin_rpy}"/>
+        <geometry>
+          <xacro:if value="${visual_geometry_type == 'box'}">
+            <box size="${visual_geometry_size}"/>
+          </xacro:if>
+          <xacro:if value="${visual_geometry_type == 'cylinder'}">
+            <cylinder radius="${visual_geometry_size.split(' ')[0]}" length="${visual_geometry_size.split(' ')[1]}"/>
+          </xacro:if>
+          <xacro:if value="${visual_geometry_type == 'sphere'}">
+            <sphere radius="${visual_geometry_size}"/>
+          </xacro:if>
+          <xacro:if value="${visual_geometry_type == 'mesh' and visual_geometry_mesh_filename != ''}">
+            <mesh filename="${visual_geometry_mesh_filename}" scale="${visual_geometry_mesh_scale}"/>
+          </xacro:if>
+        </geometry>
+        <material name="${visual_material}"/>
+      </visual>
+      <!-- Collision element -->
+      <collision>
+        <origin xyz="${collision_origin_xyz}" rpy="${collision_origin_rpy}"/>
+        <geometry>
+          <xacro:if value="${collision_geometry_type == 'box'}">
+            <box size="${collision_geometry_size}"/>
+          </xacro:if>
+          <xacro:if value="${collision_geometry_type == 'cylinder'}">
+            <cylinder radius="${collision_geometry_size.split(' ')[0]}" length="${collision_geometry_size.split(' ')[1]}"/>
+          </xacro:if>
+          <xacro:if value="${collision_geometry_type == 'sphere'}">
+            <sphere radius="${collision_geometry_size}"/>
+          </xacro:if>
+          <xacro:if value="${collision_geometry_type == 'mesh' and collision_geometry_mesh_filename != ''}">
+            <mesh filename="${collision_geometry_mesh_filename}" scale="${collision_geometry_mesh_scale}"/>
+          </xacro:if>
+        </geometry>
+      </collision>
+      <!-- Inertial: auto-calculate or manual -->
+      <xacro:if value="${auto_inertia == 'true'}">
+        <xacro:if value="${shape == 'box'}">
+          <xacro:inertial_box mass="${mass}" x="${size1}" y="${size2}" z="${size3}">
+            <origin xyz="${inertial_origin_xyz}" rpy="${inertial_origin_rpy}"/>
+          </xacro:inertial_box>
+        </xacro:if>
+        <xacro:if value="${shape == 'cylinder'}">
+          <xacro:inertial_cylinder mass="${mass}" radius="${size1}" length="${size2}">
+            <origin xyz="${inertial_origin_xyz}" rpy="${inertial_origin_rpy}"/>
+          </xacro:inertial_cylinder>
+        </xacro:if>
+        <xacro:if value="${shape == 'sphere'}">
+          <xacro:inertial_sphere mass="${mass}" radius="${size1}">
+            <origin xyz="${inertial_origin_xyz}" rpy="${inertial_origin_rpy}"/>
+          </xacro:inertial_sphere>
+        </xacro:if>
+      </xacro:if>
+      <xacro:if value="${auto_inertia != 'true'}">
+        <inertial>
+          <origin xyz="${inertial_origin_xyz}" rpy="${inertial_origin_rpy}"/>
+          <mass value="${mass}"/>
+          <inertia ixx="${inertia_ixx}" ixy="${inertia_ixy}" ixz="${inertia_ixz}"
+                   iyy="${inertia_iyy}" iyz="${inertia_iyz}" izz="${inertia_izz}"/>
+        </inertial>
+      </xacro:if>
+    </link>
+  </xacro:macro>
+
+  <!-- Joint Macro -->
   <xacro:macro name="joint_template" params="
     joint_name
     joint_type
@@ -66,93 +198,8 @@
     </joint>
   </xacro:macro>
 
-  <xacro:macro name="link_template" params="
-    link_name
-    mass := '1.0'
-    inertia_ixx := '1.0'
-    inertia_ixy := '0.0'
-    inertia_ixz := '0.0'
-    inertia_iyy := '1.0'
-    inertia_iyz := '0.0'
-    inertia_izz := '1.0'
-    inertial_origin_xyz := '0 0 0'
-    inertial_origin_rpy := '0 0 0'
-
-    visual_geometry_type := 'box'
-    visual_geometry_size := '1 1 1'
-    visual_geometry_mesh_filename := ''
-    visual_geometry_mesh_scale := '1 1 1'
-    visual_origin_xyz := '0 0 0'
-    visual_origin_rpy := '0 0 0'
-    visual_material := 'gray'
-
-    collision_geometry_type := 'box'
-    collision_geometry_size := '1 1 1'
-    collision_geometry_mesh_filename := ''
-    collision_geometry_mesh_scale := '1 1 1'
-    collision_origin_xyz := '0 0 0'
-    collision_origin_rpy := '0 0 0'
-
-    add_sensor := 'false'
-    sensor_type := 'none'
-    sensor_name := ''
-    sensor_origin_xyz := '0 0 0'
-    sensor_origin_rpy := '0 0 0'
-  ">
-    <link name="${link_name}">
-      <visual>
-        <origin xyz="${visual_origin_xyz}" rpy="${visual_origin_rpy}"/>
-        <geometry>
-          <xacro:if value="${visual_geometry_type == 'box'}">
-            <box size="${visual_geometry_size}"/>
-          </xacro:if>
-          <xacro:if value="${visual_geometry_type == 'cylinder'}">
-            <cylinder radius="${visual_geometry_size.split(' ')[0]}" length="${visual_geometry_size.split(' ')[1]}"/>
-          </xacro:if>
-          <xacro:if value="${visual_geometry_type == 'sphere'}">
-            <sphere radius="${visual_geometry_size}"/>
-          </xacro:if>
-          <xacro:if value="${visual_geometry_type == 'mesh' and visual_geometry_mesh_filename != ''}">
-            <mesh filename="${visual_geometry_mesh_filename}" scale="${visual_geometry_mesh_scale}"/>
-          </xacro:if>
-        </geometry>
-        <material name="${visual_material}"/>
-      </visual>
-
-      <collision>
-        <origin xyz="${collision_origin_xyz}" rpy="${collision_origin_rpy}"/>
-        <geometry>
-          <xacro:if value="${collision_geometry_type == 'box'}">
-            <box size="${collision_geometry_size}"/>
-          </xacro:if>
-          <xacro:if value="${collision_geometry_type == 'cylinder'}">
-            <cylinder radius="${collision_geometry_size.split(' ')[0]}" length="${collision_geometry_size.split(' ')[1]}"/>
-          </xacro:if>
-          <xacro:if value="${collision_geometry_type == 'sphere'}">
-            <sphere radius="${collision_geometry_size}"/>
-          </xacro:if>
-          <xacro:if value="${collision_geometry_type == 'mesh' and collision_geometry_mesh_filename != ''}">
-            <mesh filename="${collision_geometry_mesh_filename}" scale="${collision_geometry_mesh_scale}"/>
-          </xacro:if>
-        </geometry>
-      </collision>
-
-      <inertial>
-        <origin xyz="${inertial_origin_xyz}" rpy="${inertial_origin_rpy}"/>
-        <mass value="${mass}"/>
-        <inertia ixx="${inertia_ixx}" ixy="${inertia_ixy}" ixz="${inertia_ixz}"
-                 iyy="${inertia_iyy}" iyz="${inertia_iyz}" izz="${inertia_izz}"/>
-      </inertial>
-
-      <xacro:if value="${add_sensor == 'true' and sensor_type != 'none'}">
-        <sensor type="${sensor_type}" name="${sensor_name}">
-          <origin xyz="${sensor_origin_xyz}" rpy="${sensor_origin_rpy}"/>
-        </sensor>
-      </xacro:if>
-    </link>
-  </xacro:macro>
-
 </robot>
+
 
 <!--===============================================================================
                            XACRO URDF MACRO LIBRARY
@@ -217,6 +264,20 @@
         <!-- Define joints -->
         <xacro:joint_template joint_name="shoulder" joint_type="revolute" parent_link="base_link" child_link="shoulder_link" axis_xyz="0 0 1"/>
       </robot>
+
+<xacro:link_template
+  link_name="my_box"
+  mass="2.0"
+  shape="box"
+  size1="0.5"
+  size2="0.2"
+  size3="0.1"
+  visual_geometry_type="box"
+  visual_geometry_size="0.5 0.2 0.1"
+  collision_geometry_type="box"
+  collision_geometry_size="0.5 0.2 0.1"
+  visual_material="blue"
+/>
 
       NOTES:
       ------
